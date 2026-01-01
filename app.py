@@ -4,66 +4,60 @@ import numpy as np
 import easyocr
 from PIL import Image
 
-# ១. ការកំណត់ទំព័រកម្មវិធីឱ្យទៅជា "Poster Analyzing"
+# ១. ការកំណត់ទំព័រ
 st.set_page_config(page_title="Poster Analyzing", layout="wide")
 
-# ២. បង្កើតមុខងារ Caching ដើម្បីរក្សាទុក Model AI (ជួយកុំឱ្យ App គាំង RAM)
+# បង្កើតអថេរ reader ជាតម្លៃទទេជាមុន ដើម្បីការពារ Error "not defined"
+reader = None
+
 @st.cache_resource
 def load_reader():
-    # កំណត់ gpu=False ព្រោះ Server ប្រើតែ CPU
-    # ប្រើ 'km' សម្រាប់អក្សរខ្មែរ និង 'en' សម្រាប់អង់គ្លេស
-    return easyocr.Reader(['kh', 'en'], gpu=False)
+    try:
+        # ប្រើប្រាស់ List [] ឱ្យបានត្រឹមត្រូវ និងកំណត់ gpu=False សម្រាប់ Cloud
+        return easyocr.Reader(['kh', 'en'], gpu=False)
+    except Exception as e:
+        st.error(f"មិនអាចបញ្ចូល Model AI ភាសាខ្មែរបានទេ: {e}")
+        # ប្រសិនបើភាសាខ្មែរមានបញ្ហា វានឹងប្រើតែភាសាអង់គ្លេសជាបណ្ដោះអាសន្ន
+        return easyocr.Reader(['en'], gpu=False)
 
-# ហៅ Model មកប្រើប្រាស់
-try:
-    reader = load_reader()
-except Exception as e:
-    st.error(f"មិនអាចបញ្ចូល Model AI បានទេ: {e}")
+# ព្យាយាមបញ្ចូល Model
+reader = load_reader()
 
-# ៣. ចំណងជើងកម្មវិធី (លក្ខណៈទូទៅ)
 st.title("🚗 Poster Analyzing Tool")
-st.write("ឧបករណ៍ឆ្លាតវៃសម្រាប់វិភាគកម្រិតដង់ស៊ីតេព័ត៌មាន និងអានអក្សរលើរូបភាព Poster")
+st.write("ឧបករណ៍វិភាគដង់ស៊ីតេព័ត៌មាន និងអានអក្សរ (Version 1.3)")
 
-uploaded_file = st.file_uploader("ជ្រើសរើសរូបភាព Poster (JPG, PNG)...", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("ជ្រើសរើសរូបភាព Poster...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    try:
-        image = Image.open(uploaded_file)
-        # ប្រើ use_container_width ដើម្បីបំបាត់ Error ក្នុង Log
-        st.image(image, caption='រូបភាពដែលបានជ្រើសរើស', use_container_width=True)
-        
-        if st.button('ចាប់ផ្ដើមការវិភាគ'):
-            with st.spinner('⏳ កំពុងគណនាទិន្នន័យ (សូមរង់ចាំ)...'):
-                # បម្លែងរូបភាពសម្រាប់ OpenCV
+    image = Image.open(uploaded_file)
+    st.image(image, caption='រូបភាពសម្រាប់វិភាគ', use_container_width=True)
+    
+    if st.button('ចាប់ផ្ដើមការវិភាគ'):
+        # ពិនិត្យថា តើ reader ត្រូវបានបង្កើតជោគជ័យឬនៅ
+        if reader is not None:
+            with st.spinner('⏳ កំពុងគណនា...'):
                 img_array = np.array(image)
                 
-                # ៤. វិភាគដង់ស៊ីតេព័ត៌មាន (Edge Detection)
+                # វិភាគដង់ស៊ីតេ
                 gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
                 edges = cv2.Canny(gray, 50, 150)
                 density = (np.sum(edges > 0) / edges.size) * 100
                 
-                # ៥. អានអក្សរដោយប្រើ AI (EasyOCR)
+                # អានអក្សរ
                 result = reader.readtext(img_array)
                 
-                # ៦. បង្ហាញរបាយការណ៍លទ្ធផល
-                st.subheader("📊 របាយការណ៍វិភាគ")
+                st.subheader("📊 របាយការណ៍លទ្ធផល")
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     st.metric("កម្រិតដង់ស៊ីតេ (Density)", f"{density:.2f}%")
                     if density > 15:
-                        st.warning("⚠️ ព្រមាន៖ Poster នេះមានព័ត៌មានច្រើនពេក អាចនឹងបាត់បង់ Reach!")
+                        st.warning("⚠️ ព្រមាន៖ Poster នេះមានព័ត៌មានច្រើនពេក!")
                     else:
-                        # សារជោគជ័យថ្មីដែលមិនមានបញ្ជាក់តម្លៃទឹកប្រាក់
-                        st.success("✅ តុល្យភាពល្អ ស័ក្តិសមសម្រាប់ការផ្សព្វផ្សាយ (Boost Ads)!")
+                        st.success("✅ តុល្យភាពល្អ ស័ក្តិសមសម្រាប់ការផ្សព្វផ្សាយ!")
                 
                 with col2:
-                    st.write(f"📝 **រកឃើញប្លុកអក្សរចំនួន:** {len(result)}")
+                    st.write(f"📝 រកឃើញប្លុកអក្សរចំនួន: {len(result)}")
                     for (bbox, text, prob) in result:
-                        st.write(f"- {text} (ភាពច្បាស់: {prob:.2f})")
-                        
-    except Exception as e:
-        st.error(f"មានបញ្ហាបច្ចេកទេសក្នុងការវិភាគរូបភាព: {e}")
-
-st.sidebar.markdown("---")
-st.sidebar.info("បច្ចេកវិទ្យា Poster Analyzing សម្រាប់ពង្រឹងប្រសិទ្ធភាព Digital Marketing")
+                        st.write(f"- {text}")
+        else:
+            st.error("ប្រព័ន្ធ AI មិនទាន់រួចរាល់ឡើយ។ សូមព្យាយាម Refresh ទំព័រនេះម្ដងទៀត។")
