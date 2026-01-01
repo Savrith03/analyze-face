@@ -12,7 +12,7 @@ st.set_page_config(page_title="Poster Analyzing", layout="wide")
 def load_reader():
     # កំណត់ gpu=False ព្រោះ Server ប្រើតែ CPU
     # ប្រើ 'km' សម្រាប់អក្សរខ្មែរ និង 'en' សម្រាប់អង់គ្លេស
-    return easyocr.Reader(['km', 'en'], gpu=False)
+    return easyocr.Reader(['kh', 'en'], gpu=False)
 
 # ហៅ Model មកប្រើប្រាស់
 try:
